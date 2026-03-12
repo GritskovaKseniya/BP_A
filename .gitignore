@@ -1,6 +1,8 @@
-# Dati personali — esclusi dal repository
+# Dati personali — PDF originali esclusi dal repository
 doc/
-data/
+
+# Dati grezzi — il JSON estratto (data/payslips.json) è incluso nel repo
+data/*.pdf
 
 # Python
 __pycache__/
