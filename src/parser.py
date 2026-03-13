@@ -199,8 +199,8 @@ def parse_payslip(pdf_path: str) -> dict | None:
 
 
 def load_all(doc_dir: str) -> list[dict]:
-    pattern = os.path.join(doc_dir, "*.pdf")
-    files = glob.glob(pattern)
+    pattern = os.path.join(doc_dir, "**", "*.pdf")
+    files = glob.glob(pattern, recursive=True)
 
     raw = []
     for f in files:
