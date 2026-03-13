@@ -172,6 +172,147 @@ if ultimo is not None:
 st.divider()
 
 # ---------------------------------------------------------------------------
+# Sezione Aumenti — nominale e reale (inflazione ISTAT NIC)
+# ---------------------------------------------------------------------------
+
+# Inflazione ISTAT NIC media annua (variazione % vs anno precedente)
+INFLAZIONE_ISTAT: dict[int, float] = {
+    2022: 8.7,
+    2023: 5.7,
+    2024: 1.0,
+    2025: 1.5,   # stima preliminare
+    2026: 1.4,   # stima preliminare
+}
+
+st.markdown('<div class="section-title">Aumenti — variazione nominale e reale (inflazione ISTAT NIC)</div>', unsafe_allow_html=True)
+
+# Media netto per anno (solo mesi ordinari, no aggiustamenti)
+media_netto_anno = (
+    df[~df["is_aggiustamento"]]
+    .groupby("anno")["netto"]
+    .mean()
+    .reset_index()
+    .rename(columns={"netto": "media_netto"})
+    .sort_values("anno")
+)
+
+rows_aum = []
+for i, row in media_netto_anno.iterrows():
+    anno = row["anno"]
+    media = row["media_netto"]
+    if i == 0:
+        rows_aum.append({
+            "Anno": anno,
+            "Media netto (€)": media,
+            "Δ nominale %": None,
+            "Inflazione %": INFLAZIONE_ISTAT.get(anno),
+            "Δ reale %": None,
+        })
+    else:
+        prev_media = media_netto_anno.iloc[i - 1]["media_netto"]
+        delta_nom = (media - prev_media) / prev_media * 100
+        infl = INFLAZIONE_ISTAT.get(anno, 0.0)
+        delta_reale = delta_nom - infl
+        rows_aum.append({
+            "Anno": anno,
+            "Media netto (€)": media,
+            "Δ nominale %": delta_nom,
+            "Inflazione %": infl,
+            "Δ reale %": delta_reale,
+        })
+
+df_aum = pd.DataFrame(rows_aum)
+
+# KPI: incremento totale dal primo all'ultimo anno disponibile
+anni_completi = df_aum.dropna(subset=["Δ nominale %"])
+if len(anni_completi) > 0:
+    tot_nom = df_aum["Δ nominale %"].dropna().sum()
+    tot_infl = df_aum["Inflazione %"].dropna().sum()
+    tot_reale = df_aum["Δ reale %"].dropna().sum()
+
+    anno_inizio = int(df_aum["Anno"].iloc[0])
+    anno_fine = int(df_aum["Anno"].iloc[-1])
+
+    ka1, ka2, ka3 = st.columns(3)
+    ka1.markdown(
+        kpi_card(f"Aumento nominale cumulato ({anno_inizio}→{anno_fine})", tot_nom, fmt="{:+.1f}%"),
+        unsafe_allow_html=True,
+    )
+    ka2.markdown(
+        kpi_card(f"Inflazione cumulata ({anno_inizio}→{anno_fine})", tot_infl, fmt="{:.1f}%"),
+        unsafe_allow_html=True,
+    )
+    ka3.markdown(
+        kpi_card(f"Aumento reale cumulato ({anno_inizio}→{anno_fine})", tot_reale, fmt="{:+.1f}%"),
+        unsafe_allow_html=True,
+    )
+
+# Grafico barre affiancate: nominale vs reale per anno
+df_aum_plot = df_aum.dropna(subset=["Δ nominale %"]).copy()
+fig_aum = go.Figure()
+fig_aum.add_trace(go.Bar(
+    x=df_aum_plot["Anno"].astype(str),
+    y=df_aum_plot["Δ nominale %"],
+    name="Δ nominale %",
+    marker_color=COLORS["lordo"],
+    text=df_aum_plot["Δ nominale %"].map("{:+.1f}%".format),
+    textposition="outside",
+    hovertemplate="<b>Nominale</b>: %{y:+.2f}%<extra></extra>",
+))
+fig_aum.add_trace(go.Bar(
+    x=df_aum_plot["Anno"].astype(str),
+    y=df_aum_plot["Δ reale %"],
+    name="Δ reale % (nominale − inflazione)",
+    marker_color=df_aum_plot["Δ reale %"].apply(
+        lambda v: COLORS["netto"] if v >= 0 else COLORS["irpef"]
+    ),
+    text=df_aum_plot["Δ reale %"].map("{:+.1f}%".format),
+    textposition="outside",
+    hovertemplate="<b>Reale</b>: %{y:+.2f}%<extra></extra>",
+))
+fig_aum.add_trace(go.Scatter(
+    x=df_aum_plot["Anno"].astype(str),
+    y=df_aum_plot["Inflazione %"],
+    name="Inflazione ISTAT NIC %",
+    mode="lines+markers",
+    line=dict(color="#f9e2af", width=2, dash="dot"),
+    marker=dict(size=8, symbol="diamond"),
+    hovertemplate="<b>Inflazione</b>: %{y:.1f}%<extra></extra>",
+))
+fig_aum.add_hline(y=0, line_width=1, line_color="#585b70")
+fig_aum.update_layout(
+    template=PLOTLY_THEME,
+    height=360,
+    barmode="group",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    xaxis_title="Anno",
+    yaxis_title="Variazione %",
+    hovermode="x unified",
+    margin=dict(l=0, r=0, t=10, b=0),
+)
+st.plotly_chart(fig_aum, use_container_width=True)
+
+# Tabella dettaglio
+st.dataframe(
+    df_aum.style.format({
+        "Media netto (€)": "{:,.2f}",
+        "Δ nominale %": lambda v: f"{v:+.2f}%" if v is not None else "—",
+        "Inflazione %": lambda v: f"{v:.1f}%" if v is not None else "—",
+        "Δ reale %": lambda v: f"{v:+.2f}%" if v is not None else "—",
+    }).applymap(
+        lambda v: "color: #a6e3a1" if isinstance(v, float) and v > 0
+                  else ("color: #f38ba8" if isinstance(v, float) and v < 0 else ""),
+        subset=["Δ reale %"],
+    ),
+    use_container_width=True,
+    hide_index=True,
+)
+
+st.caption("Inflazione ISTAT NIC (Indice Nazionale dei prezzi al Consumo) — media annua. Fonte: Istat. Il Δ reale misura quanto l'aumento di stipendio ha superato (o non raggiunto) il costo della vita.")
+
+st.divider()
+
+# ---------------------------------------------------------------------------
 # Grafico 1 — Evoluzione mensile: netto, lordo, IRPEF, IVS
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Evoluzione mensile — Retribuzione e trattenute</div>', unsafe_allow_html=True)
