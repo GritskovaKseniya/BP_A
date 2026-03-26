@@ -45,11 +45,12 @@ def require_login():
     """
     auth = _get_authenticator()
 
-    # streamlit-authenticator >= 0.3.x
-    try:
-        auth.login()
-    except Exception:
-        auth.login(location="main")
+    # Inizializza le chiavi di session state richieste da streamlit-authenticator 0.4.x
+    for key in ["logout", "authentication_status", "name", "username"]:
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+    auth.login()
 
     status = st.session_state.get("authentication_status")
 
