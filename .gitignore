@@ -15,6 +15,5 @@ venv/
 dist/
 build/
 
-# Streamlit — la cache e i secrets locali non vanno nel repo
+# Streamlit — solo i secrets non vanno nel repo, config.toml sì
 .streamlit/secrets.toml
-.streamlit/

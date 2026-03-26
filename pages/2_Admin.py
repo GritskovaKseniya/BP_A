@@ -13,11 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import pandas as pd
 import streamlit as st
 
-from auth_helper import require_login
 from github_helper import commit_file
-
-st.set_page_config(page_title="Admin — Buste Paga", page_icon="⚙️", layout="wide")
-require_login()
 
 # ---------------------------------------------------------------------------
 # Costanti

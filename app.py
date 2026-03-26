@@ -1,7 +1,10 @@
 """
-app.py — Entry point dell'applicazione multi-page.
+app.py — Entry point: login gate + navigazione.
 Avvio: streamlit run app.py
 """
+
+import sys
+from pathlib import Path
 
 import streamlit as st
 
@@ -11,20 +14,17 @@ st.set_page_config(
     layout="wide",
 )
 
-# Importa il gate di autenticazione
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 from auth_helper import require_login
 
 require_login()
 
-# Se autenticato, mostra landing con navigazione
-st.markdown("## 📊 Buste Paga — Benvenuto")
-st.markdown("Usa la **sidebar** per navigare tra le sezioni.")
-
-col1, col2 = st.columns(2)
-with col1:
-    st.page_link("pages/1_Dashboard.py", label="Dashboard", icon="📊")
-with col2:
-    st.page_link("pages/2_Admin.py", label="Amministrazione", icon="⚙️")
+# Definisce la navigazione — "app" sparisce, rimangono solo le pagine utili
+pg = st.navigation(
+    [
+        st.Page("pages/1_Dashboard.py", title="Dashboard", icon="📊"),
+        st.Page("pages/2_Admin.py",     title="Amministrazione", icon="⚙️"),
+    ],
+    position="sidebar",
+)
+pg.run()

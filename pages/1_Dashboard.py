@@ -13,10 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from auth_helper import require_login
 
-st.set_page_config(page_title="Dashboard — Buste Paga", page_icon="📊", layout="wide")
-require_login()
 
 # ---------------------------------------------------------------------------
 # Caricamento dati

@@ -56,7 +56,8 @@ def require_login():
 
     if status is True:
         with st.sidebar:
-            st.markdown(f"👤 **{st.session_state.get('name', '')}**")
+            st.divider()
+            st.caption(f"👤 {st.session_state.get('name', '')}")
             auth.logout("Esci", location="sidebar")
         return  # autenticato — lascia continuare la pagina
 
