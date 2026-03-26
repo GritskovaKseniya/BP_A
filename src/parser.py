@@ -37,6 +37,37 @@ def extract_text(pdf_path: str) -> str:
     return text
 
 
+def extract_anagrafica(text: str) -> dict:
+    """Estrae i dati anagrafici del dipendente e dell'azienda dal testo del PDF."""
+
+    # Azienda: riga tipo "000083 TECNEST SRL"
+    m = re.search(r"\d{5,6}\s+([A-Z][A-Z0-9 '\.&,]+(?:\s+(?:SRL|SPA|SNC|SS|SAS|SCARL|ONLUS))?)\s*\n", text)
+    azienda = m.group(1).strip() if m else ""
+
+    # Nome e codice fiscale: riga tipo "0000091 HRYTSKOVA KSENIIA HRYKSN99T53Z138O"
+    m = re.search(r"\d{6,7}\s+([A-Z]+(?:\s+[A-Z]+)+)\s+([A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z])\b", text)
+    nome = m.group(1).strip() if m else ""
+    codice_fiscale = m.group(2) if m else ""
+
+    # Data assunzione: seconda data nella coppia "DataNascita DataAssunzione"
+    m = re.search(r"\d{2}-\d{2}-\d{4}\s+(\d{2}-\d{2}-\d{4})", text)
+    data_assunzione = m.group(1) if m else ""
+
+    # Livello e CCNL: "...IMP Livello C3\nInd.Metalmec FRI"
+    m = re.search(r"Livello\s+(\w+)[^\n]*\n([^\n\d][^\n]*)", text)
+    livello = m.group(1) if m else ""
+    ccnl = m.group(2).strip() if m else ""
+
+    return {
+        "nome": nome,
+        "codice_fiscale": codice_fiscale,
+        "azienda": azienda,
+        "data_assunzione": data_assunzione,
+        "livello": livello,
+        "ccnl": ccnl,
+    }
+
+
 def parse_payslip(pdf_path: str) -> dict | None:
     text = extract_text(pdf_path)
 
@@ -166,12 +197,15 @@ def parse_payslip(pdf_path: str) -> dict | None:
         parse_importo(m_lorda.group(1) + "," + m_lorda.group(2)) if m_lorda else 0.0
     )
 
+    anagrafica = extract_anagrafica(text)
+
     return {
         "periodo": periodo,
         "mese": mese_nome,
         "mese_num": mese_num,
         "anno": anno,
         "is_aggiustamento": is_aggiustamento,
+        **anagrafica,
         "netto": netto,
         "lordo": lordo,
         "retribuzione": retribuzione,

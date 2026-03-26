@@ -51,12 +51,13 @@ def load_data() -> pd.DataFrame:
 df = load_data()
 
 # ---------------------------------------------------------------------------
-# Costanti dipendente (dal primo record)
+# Dati dipendente — letti dall'ultimo cedolino
 # ---------------------------------------------------------------------------
-NOME = "Hrytskova Kseniia"
-AZIENDA = "TECNEST SRL"
-LIVELLO = "Impiegata C3 — CCNL Ind. Metalmeccanica FRI"
-DATA_ASSUNZIONE = "03/10/2022"
+_last = df.iloc[-1]
+NOME = _last.get("nome", "")
+AZIENDA = _last.get("azienda", "")
+LIVELLO = f"Livello {_last.get('livello', '')} — CCNL {_last.get('ccnl', '')}" if _last.get("livello") else ""
+DATA_ASSUNZIONE = _last.get("data_assunzione", "").replace("-", "/")
 
 # ---------------------------------------------------------------------------
 # Stile custom (CSS)
@@ -144,10 +145,35 @@ def kpi_card(label: str, value: float, prev: float | None = None, fmt: str = "�
 ultimo = df_f.iloc[-1] if len(df_f) > 0 else None
 penultimo = df_f.iloc[-2] if len(df_f) > 1 else None
 
+# RAL per anno: reale se l'anno è chiuso (ha la 13ª di dicembre), stimata altrimenti
+anni_chiusi = set(df[df["is_aggiustamento"]]["anno"].unique())
+
+def ral_per_anno(anno_df: pd.DataFrame) -> tuple[float, bool]:
+    """Restituisce (valore_ral, is_stimata)."""
+    anno = int(anno_df["anno"].iloc[0])
+    if anno in anni_chiusi:
+        return anno_df["lordo"].sum(), False
+    # Anno in corso: lordo mensile corrente × 13 (12 mesi + 13ª)
+    ultimo_lordo = anno_df[~anno_df["is_aggiustamento"]]["lordo"].iloc[-1]
+    return ultimo_lordo * 13, True
+
+ral_info = {
+    anno: ral_per_anno(grp)
+    for anno, grp in df.groupby("anno")
+}
+ral_anno = {a: v for a, (v, _) in ral_info.items()}
+ral_stimata = {a: s for a, (_, s) in ral_info.items()}
+
 st.markdown('<div class="section-title">KPI — Ultimo cedolino</div>', unsafe_allow_html=True)
-kc1, kc2, kc3, kc4, kc5 = st.columns(5)
+kc1, kc2, kc3, kc4, kc5, kc6 = st.columns(6)
 
 if ultimo is not None:
+    anno_ult = int(ultimo["anno"])
+    ral_cur = ral_anno.get(anno_ult, 0.0)
+    ral_prec = ral_anno.get(anno_ult - 1, None)
+    is_stima = ral_stimata.get(anno_ult, False)
+    ral_label = f"RAL {anno_ult} (stimata)" if is_stima else f"RAL {anno_ult}"
+
     kc1.markdown(
         kpi_card("Netto del mese", ultimo["netto"], penultimo["netto"] if penultimo is not None else None),
         unsafe_allow_html=True,
@@ -165,6 +191,10 @@ if ultimo is not None:
         unsafe_allow_html=True,
     )
     kc5.markdown(
+        kpi_card(ral_label, ral_cur, ral_prec),
+        unsafe_allow_html=True,
+    )
+    kc6.markdown(
         kpi_card("Fondo TFR", ultimo["fondo_tfr"]),
         unsafe_allow_html=True,
     )
@@ -200,9 +230,13 @@ rows_aum = []
 for i, row in media_netto_anno.iterrows():
     anno = row["anno"]
     media = row["media_netto"]
+    ral = ral_anno.get(anno, 0.0)
+    is_stima_ral = ral_stimata.get(anno, False)
+    ral_label = f"{ral:,.2f} *" if is_stima_ral else f"{ral:,.2f}"
     if i == 0:
         rows_aum.append({
             "Anno": anno,
+            "RAL (€)": ral_label,
             "Media netto (€)": media,
             "Δ nominale %": None,
             "Inflazione %": INFLAZIONE_ISTAT.get(anno),
@@ -215,6 +249,7 @@ for i, row in media_netto_anno.iterrows():
         delta_reale = delta_nom - infl
         rows_aum.append({
             "Anno": anno,
+            "RAL (€)": ral_label,
             "Media netto (€)": media,
             "Δ nominale %": delta_nom,
             "Inflazione %": infl,
@@ -308,7 +343,7 @@ st.dataframe(
     hide_index=True,
 )
 
-st.caption("Inflazione ISTAT NIC (Indice Nazionale dei prezzi al Consumo) — media annua. Fonte: Istat. Il Δ reale misura quanto l'aumento di stipendio ha superato (o non raggiunto) il costo della vita.")
+st.caption("Inflazione ISTAT NIC (Indice Nazionale dei prezzi al Consumo) — media annua. Fonte: Istat. Il Δ reale misura quanto l'aumento di stipendio ha superato (o non raggiunto) il costo della vita. * RAL stimata = lordo mensile corrente × 13 (anno in corso, non ancora chiuso).")
 
 st.divider()
 
