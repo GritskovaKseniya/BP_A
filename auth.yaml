@@ -3,7 +3,7 @@ credentials:
     admin:
       email: ""
       name: "Admin"
-      password: "$2b$12$crg9KRen1mFl1/ZOQFrnluZBVIv0QcBjsSWgn8KmcQGl75mlUGINC"  # changeme
+      password: "$2b$12$AWJuo07x1HQpKxdSFutQs.6vmgs5Tjs9gwhtw7AhAb1eGZqXZnu2K"
 cookie:
   expiry_days: 7
   key: "bp-app-secret-key-change-in-production"
