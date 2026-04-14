@@ -280,6 +280,43 @@ with col_g2b:
     st.plotly_chart(fig3, use_container_width=True)
 
 # ---------------------------------------------------------------------------
+# Grafico 2b — Prezzo all'ora
+# ---------------------------------------------------------------------------
+st.markdown('<div class="section-title">Costo orario — Lordo e netto per ora lavorata</div>', unsafe_allow_html=True)
+df_ore = df_f[df_f["ore_lavorate"] > 0].copy()
+if len(df_ore) > 0:
+    df_ore["€/ora lordo"] = df_ore["lordo"] / df_ore["ore_lavorate"]
+    df_ore["€/ora netto"] = df_ore["netto"] / df_ore["ore_lavorate"]
+    fig_ora = go.Figure()
+    fig_ora.add_trace(go.Scatter(
+        x=df_ore["etichetta"], y=df_ore["€/ora lordo"],
+        name="Lordo/ora", mode="lines+markers",
+        line=dict(color=COLORS["lordo"], width=2), marker=dict(size=7),
+        hovertemplate="<b>Lordo/ora</b>: €%{y:.2f}<extra></extra>",
+    ))
+    fig_ora.add_trace(go.Scatter(
+        x=df_ore["etichetta"], y=df_ore["€/ora netto"],
+        name="Netto/ora", mode="lines+markers",
+        line=dict(color=COLORS["netto"], width=2), marker=dict(size=7),
+        hovertemplate="<b>Netto/ora</b>: €%{y:.2f}<extra></extra>",
+    ))
+    fig_ora.update_layout(
+        template=PLOTLY_THEME, height=320,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis_title="", yaxis_title="€/ora", hovermode="x unified",
+        margin=dict(l=0, r=0, t=10, b=0),
+    )
+    st.plotly_chart(fig_ora, use_container_width=True)
+
+    col_ora1, col_ora2 = st.columns(2)
+    avg_lordo = df_ore["€/ora lordo"].mean()
+    avg_netto = df_ore["€/ora netto"].mean()
+    col_ora1.metric("Media lordo/ora", f"€{avg_lordo:.2f}")
+    col_ora2.metric("Media netto/ora", f"€{avg_netto:.2f}")
+else:
+    st.info("Nessun dato sulle ore lavorate nel periodo selezionato.")
+
+# ---------------------------------------------------------------------------
 # Grafico 3 — TFR
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">TFR — Quota mensile e fondo accumulato</div>', unsafe_allow_html=True)

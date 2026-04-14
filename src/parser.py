@@ -104,6 +104,18 @@ def parse_payslip(pdf_path: str) -> dict | None:
     # 13a mensilità (presente solo a dicembre)
     tredicesima = find_voce("Z50000")
 
+    # Premio / una tantum (codice variabile — cerca per descrizione)
+    m_premio = re.search(
+        r"\*{0,2}\d{6}\s+Premio[^\n]*?([\d\.]+),(\d{2})\s*$",
+        text, re.MULTILINE | re.IGNORECASE,
+    )
+    if not m_premio:
+        m_premio = re.search(
+            r"\*{0,2}\d{6}\s+[^\n]*[Uu]na\s+[Tt]antum[^\n]*?([\d\.]+),(\d{2})\s*$",
+            text, re.MULTILINE,
+        )
+    premio = parse_importo(m_premio.group(1) + "," + m_premio.group(2)) if m_premio else 0.0
+
     # Contributo IVS (INPS dipendente)  — formato: "Contributo IVS 2.471,00 % 9,19000 227,08"
     m_ivs = re.search(
         r"Contributo IVS\s+[\d\.]+,\d+\s+%\s+[\d,]+\s+([\d\.]+),(\d{2})", text
@@ -210,6 +222,7 @@ def parse_payslip(pdf_path: str) -> dict | None:
         "lordo": lordo,
         "retribuzione": retribuzione,
         "tredicesima": tredicesima,
+        "premio": premio,
         "imponibile_irpef": imponibile,
         "irpef_lorda": irpef_lorda,
         "irpef": irpef,
@@ -244,15 +257,30 @@ def load_all(doc_dir: str) -> list[dict]:
 
     # Deduplica: per ogni periodo tieni l'aggiustamento se presente,
     # altrimenti il cedolino ordinario.
+    # Campi numerici che possono comparire solo nel cedolino ordinario (non nell'aggiustamento)
+    MERGE_IF_ZERO = {"premio", "ore_lavorate", "giorni_lavorati", "giorni_mese",
+                     "ferie_saldo", "ferie_goduto", "ferie_maturato",
+                     "par_saldo", "par_goduto", "par_maturato"}
+
     by_period: dict[str, dict] = {}
     for entry in raw:
         p = entry["periodo"]
         if p not in by_period:
             by_period[p] = entry
         else:
-            # Preferisci l'aggiustamento (ha più voci complete per la 13a)
+            existing = by_period[p]
             if entry["is_aggiustamento"]:
-                by_period[p] = entry
+                # L'aggiustamento vince, ma recupera i campi assenti dal cedolino ordinario
+                merged = dict(entry)
+                for field in MERGE_IF_ZERO:
+                    if not merged.get(field) and existing.get(field):
+                        merged[field] = existing[field]
+                by_period[p] = merged
+            else:
+                # Cedolino ordinario: porta i campi mancanti nell'aggiustamento già salvato
+                for field in MERGE_IF_ZERO:
+                    if not existing.get(field) and entry.get(field):
+                        existing[field] = entry[field]
 
     # Ordina cronologicamente
     result = sorted(by_period.values(), key=lambda x: (x["anno"], x["mese_num"]))
